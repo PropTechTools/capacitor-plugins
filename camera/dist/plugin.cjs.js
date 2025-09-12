@@ -13,6 +13,11 @@ exports.CameraSource = void 0;
      */
     CameraSource["Camera"] = "CAMERA";
     /**
+     * Take multiple photos in a row using the camera.
+     * Available on Android and iOS.
+     */
+    CameraSource["CameraMulti"] = "CAMERA_MULTI";
+    /**
      * Pick an existing photo from the gallery or photo album.
      */
     CameraSource["Photos"] = "PHOTOS";
