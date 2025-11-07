@@ -8,8 +8,9 @@ import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
+
 import androidx.exifinterface.media.ExifInterface;
-import com.getcapacitor.Logger;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -18,6 +19,7 @@ public class ImageUtils {
     /**
      * Resize an image to the given max width and max height. Constraint can be put
      * on one dimension, or both. Resize will always preserve aspect ratio.
+     *
      * @param bitmap
      * @param desiredMaxWidth
      * @param desiredMaxHeight
@@ -30,6 +32,7 @@ public class ImageUtils {
     /**
      * Resize an image to the given max width and max height. Constraint can be put
      * on one dimension, or both. Resize will always preserve aspect ratio.
+     *
      * @param bitmap
      * @param desiredMaxWidth
      * @param desiredMaxHeight
@@ -56,6 +59,7 @@ public class ImageUtils {
 
     /**
      * Transform an image with the given matrix
+     *
      * @param bitmap
      * @param matrix
      * @return
@@ -67,6 +71,7 @@ public class ImageUtils {
     /**
      * Correct the orientation of an image by reading its exif information and rotating
      * the appropriate amount for portrait mode
+     *
      * @param bitmap
      * @param imageUri
      * @param exif
@@ -91,11 +96,12 @@ public class ImageUtils {
             int width = bitmap.getWidth();
             int height = bitmap.getHeight();
             if (width > height) {
-                // Landscape image, rotate 90 degrees to portrait
-                Matrix matrix = new Matrix();
-                matrix.postRotate(90);
-                // Optionally, you may want to flip or further adjust based on your use case
-                return transform(bitmap, matrix);
+//                TODO: add support for portrait images
+//                // Landscape image, rotate 90 degrees to portrait
+//                Matrix matrix = new Matrix();
+//                matrix.postRotate(90);
+//                // Optionally, you may want to flip or further adjust based on your use case
+//                return transform(bitmap, matrix);
             }
             return bitmap;
         }
@@ -129,12 +135,13 @@ public class ImageUtils {
 
             return new ExifWrapper(exifInterface);
         } catch (IOException ex) {
-            Logger.error("Error loading exif data from image", ex);
+
         } finally {
             if (stream != null) {
                 try {
                     stream.close();
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {
+                }
             }
         }
         return new ExifWrapper(null);
