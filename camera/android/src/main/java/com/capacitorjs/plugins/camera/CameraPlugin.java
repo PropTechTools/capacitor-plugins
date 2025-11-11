@@ -18,6 +18,7 @@ import android.os.Environment;
 import android.os.Parcelable;
 import android.provider.MediaStore;
 import android.util.Base64;
+
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -27,6 +28,8 @@ import androidx.activity.result.contract.ActivityResultContract;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.core.content.FileProvider;
+import androidx.fragment.app.FragmentTransaction;
+
 import com.getcapacitor.FileUtils;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -39,6 +42,7 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -48,41 +52,43 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.json.JSONException;
 
 /**
  * The Camera plugin makes it easy to take a photo or have the user select a photo
  * from their albums.
- *
+ * <p>
  * On Android, this plugin sends an intent that opens the stock Camera app.
- *
+ * <p>
  * Adapted from https://developer.android.com/training/camera/photobasics.html
  */
 @SuppressLint("InlinedApi")
 @CapacitorPlugin(
-    name = "Camera",
-    permissions = {
-        @Permission(strings = { Manifest.permission.CAMERA }, alias = CameraPlugin.CAMERA),
-        @Permission(strings = {}, alias = CameraPlugin.PHOTOS),
-        // SDK VERSIONS 29 AND BELOW
-        @Permission(
-            strings = { Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE },
-            alias = CameraPlugin.SAVE_GALLERY
-        ),
+        name = "Camera",
+        permissions = {
+                @Permission(strings = {Manifest.permission.CAMERA}, alias = CameraPlugin.CAMERA),
+                @Permission(strings = {}, alias = CameraPlugin.PHOTOS),
+                // SDK VERSIONS 29 AND BELOW
+                @Permission(
+                        strings = {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        alias = CameraPlugin.SAVE_GALLERY
+                ),
         /*
         SDK VERSIONS 30-32
         This alias is a placeholder and the SAVE_GALLERY alias will be updated to use this permission
         so that the end user does not need to explicitly use separate aliases depending
         on the SDK version.
          */
-        @Permission(strings = { Manifest.permission.READ_EXTERNAL_STORAGE }, alias = CameraPlugin.READ_EXTERNAL_STORAGE)
-    }
+                @Permission(strings = {Manifest.permission.READ_EXTERNAL_STORAGE}, alias = CameraPlugin.READ_EXTERNAL_STORAGE)
+        }
 )
 public class CameraPlugin extends Plugin {
 
@@ -104,6 +110,7 @@ public class CameraPlugin extends Plugin {
     private static final String IMAGE_EDIT_ERROR = "Unable to edit image";
     private static final String IMAGE_GALLERY_SAVE_ERROR = "Unable to save the image in the gallery";
     private static final String USER_CANCELLED = "User cancelled photos app";
+    private static final String CAMERA_CAPTURE_CANCELED_ERROR = "User canceled the camera capture session";
 
     private String imageFileSavePath;
     private String imageEditedFileSavePath;
@@ -152,6 +159,9 @@ public class CameraPlugin extends Plugin {
             case CAMERA:
                 showCamera(call);
                 break;
+            case CAMERA_MULTI:
+                showMultiCamera(call);
+                break;
             case PHOTOS:
                 showPhotos(call);
                 break;
@@ -166,21 +176,25 @@ public class CameraPlugin extends Plugin {
         List<String> options = new ArrayList<>();
         options.add(call.getString("promptLabelPhoto", "From Photos"));
         options.add(call.getString("promptLabelPicture", "Take Picture"));
+        options.add(call.getString("promptLabelPicture", "Take Multiple Pictures"));
 
         final CameraBottomSheetDialogFragment fragment = new CameraBottomSheetDialogFragment();
         fragment.setTitle(call.getString("promptLabelHeader", "Photo"));
         fragment.setOptions(
-            options,
-            index -> {
-                if (index == 0) {
-                    settings.setSource(CameraSource.PHOTOS);
-                    openPhotos(call);
-                } else if (index == 1) {
-                    settings.setSource(CameraSource.CAMERA);
-                    openCamera(call);
-                }
-            },
-            () -> call.reject(USER_CANCELLED)
+                options,
+                index -> {
+                    if (index == 0) {
+                        settings.setSource(CameraSource.PHOTOS);
+                        openPhotos(call);
+                    } else if (index == 1) {
+                        settings.setSource(CameraSource.CAMERA);
+                        openCamera(call);
+                    } else if (index == 2) {
+                        settings.setSource(CameraSource.CAMERA_MULTI);
+                        openMultiCamera(call);
+                    }
+                },
+                () -> call.reject(USER_CANCELLED)
         );
         fragment.show(getActivity().getSupportFragmentManager(), "capacitorModalsActionSheet");
     }
@@ -191,6 +205,14 @@ public class CameraPlugin extends Plugin {
             return;
         }
         openCamera(call);
+    }
+
+    private void showMultiCamera(final PluginCall call) {
+        if (!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) {
+            call.reject(NO_CAMERA_ERROR);
+            return;
+        }
+        openMultiCamera(call);
     }
 
     private void showPhotos(final PluginCall call) {
@@ -219,9 +241,9 @@ public class CameraPlugin extends Plugin {
             isFirstRequest = false;
             String[] aliases;
             if (needCameraPerms) {
-                aliases = new String[] { CAMERA, SAVE_GALLERY };
+                aliases = new String[]{CAMERA, SAVE_GALLERY};
             } else {
-                aliases = new String[] { SAVE_GALLERY };
+                aliases = new String[]{SAVE_GALLERY};
             }
             requestPermissionForAliases(aliases, call, "cameraPermissionsCallback");
             return false;
@@ -237,15 +259,15 @@ public class CameraPlugin extends Plugin {
     /**
      * Completes the plugin call after a camera permission request
      *
-     * @see #getPhoto(PluginCall)
      * @param call the plugin call
+     * @see #getPhoto(PluginCall)
      */
     @PermissionCallback
     private void cameraPermissionsCallback(PluginCall call) {
         if (call.getMethodName().equals("pickImages")) {
             openPhotos(call, true);
         } else {
-            if (settings.getSource() == CameraSource.CAMERA && getPermissionState(CAMERA) != PermissionState.GRANTED) {
+            if ((settings.getSource() == CameraSource.CAMERA || settings.getSource() == CameraSource.CAMERA_MULTI) && getPermissionState(CAMERA) != PermissionState.GRANTED) {
                 Logger.debug(getLogTag(), "User denied camera permission: " + getPermissionState(CAMERA).toString());
                 call.reject(PERMISSION_DENIED_ERROR_CAMERA);
                 return;
@@ -256,13 +278,7 @@ public class CameraPlugin extends Plugin {
 
     @Override
     protected void requestPermissionForAliases(@NonNull String[] aliases, @NonNull PluginCall call, @NonNull String callbackName) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            for (int i = 0; i < aliases.length; i++) {
-                if (aliases[i].equals(SAVE_GALLERY)) {
-                    aliases[i] = PHOTOS;
-                }
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             for (int i = 0; i < aliases.length; i++) {
                 if (aliases[i].equals(SAVE_GALLERY)) {
                     aliases[i] = READ_EXTERNAL_STORAGE;
@@ -326,13 +342,39 @@ public class CameraPlugin extends Plugin {
         }
     }
 
+    public void openMultiCamera(final PluginCall call) {
+        if (checkCameraPermissions(call)) {
+            final CameraFragment fragment = new CameraFragment();
+            // Pass camera settings to fragment, but disable orientation correction by default for multi-camera
+            settings.setShouldCorrectOrientation(call.getBoolean("correctOrientation", CameraSettings.DEFAULT_CORRECT_ORIENTATION));
+            CameraSettings multiCameraSettings = settings;
+            //multiCameraSettings.setShouldCorrectOrientation(false); // Disable to prevent upside-down images
+            fragment.setCameraSettings(multiCameraSettings);
+            fragment.setImagesCapturedCallback(new CameraFragment.OnImagesCapturedCallback() {
+                @Override
+                public void onCaptureSuccess(HashMap<Uri, Bitmap> images) {
+                    returnMultiCameraResult(call, images);
+                }
+
+                @Override
+                public void onCaptureCanceled() {
+                    call.reject(CAMERA_CAPTURE_CANCELED_ERROR);
+                }
+            });
+
+            FragmentTransaction transaction = getActivity().getSupportFragmentManager().beginTransaction();
+            transaction.add(android.R.id.content, fragment);
+            transaction.commit();
+        }
+    }
+
     public void openPhotos(final PluginCall call) {
         openPhotos(call, false);
     }
 
     private <I, O> ActivityResultLauncher<I> registerActivityResultLauncher(
-        ActivityResultContract<I, O> contract,
-        ActivityResultCallback<O> callback
+            ActivityResultContract<I, O> contract,
+            ActivityResultCallback<O> callback
     ) {
         String key = "cap_activity_rq#" + mNextLocalRequestCode.getAndIncrement();
         if (bridge.getFragment() != null) {
@@ -358,59 +400,59 @@ public class CameraPlugin extends Plugin {
         try {
             if (multiple) {
                 pickMultipleMedia =
-                    registerActivityResultLauncher(
-                        getContractForCall(call),
-                        uris -> {
-                            if (!uris.isEmpty()) {
-                                Executor executor = Executors.newSingleThreadExecutor();
-                                executor.execute(
-                                    () -> {
-                                        JSObject ret = new JSObject();
-                                        JSArray photos = new JSArray();
-                                        for (Uri imageUri : uris) {
-                                            try {
-                                                JSObject processResult = processPickedImages(imageUri);
-                                                if (
-                                                    processResult.getString("error") != null && !processResult.getString("error").isEmpty()
-                                                ) {
-                                                    call.reject(processResult.getString("error"));
-                                                    return;
-                                                } else {
-                                                    photos.put(processResult);
+                        registerActivityResultLauncher(
+                                getContractForCall(call),
+                                uris -> {
+                                    if (!uris.isEmpty()) {
+                                        Executor executor = Executors.newSingleThreadExecutor();
+                                        executor.execute(
+                                                () -> {
+                                                    JSObject ret = new JSObject();
+                                                    JSArray photos = new JSArray();
+                                                    for (Uri imageUri : uris) {
+                                                        try {
+                                                            JSObject processResult = processPickedImages(imageUri);
+                                                            if (
+                                                                    processResult.getString("error") != null && !processResult.getString("error").isEmpty()
+                                                            ) {
+                                                                call.reject(processResult.getString("error"));
+                                                                return;
+                                                            } else {
+                                                                photos.put(processResult);
+                                                            }
+                                                        } catch (SecurityException ex) {
+                                                            call.reject("SecurityException");
+                                                        }
+                                                    }
+                                                    ret.put("photos", photos);
+                                                    call.resolve(ret);
                                                 }
-                                            } catch (SecurityException ex) {
-                                                call.reject("SecurityException");
-                                            }
-                                        }
-                                        ret.put("photos", photos);
-                                        call.resolve(ret);
+                                        );
+                                    } else {
+                                        call.reject(USER_CANCELLED);
                                     }
-                                );
-                            } else {
-                                call.reject(USER_CANCELLED);
-                            }
-                            pickMultipleMedia.unregister();
-                        }
-                    );
+                                    pickMultipleMedia.unregister();
+                                }
+                        );
                 pickMultipleMedia.launch(
-                    new PickVisualMediaRequest.Builder().setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build()
+                        new PickVisualMediaRequest.Builder().setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build()
                 );
             } else {
                 pickMedia =
-                    registerActivityResultLauncher(
-                        new ActivityResultContracts.PickVisualMedia(),
-                        uri -> {
-                            if (uri != null) {
-                                imagePickedContentUri = uri;
-                                processPickedImage(uri, call);
-                            } else {
-                                call.reject(USER_CANCELLED);
-                            }
-                            pickMedia.unregister();
-                        }
-                    );
+                        registerActivityResultLauncher(
+                                new ActivityResultContracts.PickVisualMedia(),
+                                uri -> {
+                                    if (uri != null) {
+                                        imagePickedContentUri = uri;
+                                        processPickedImage(uri, call);
+                                    } else {
+                                        call.reject(USER_CANCELLED);
+                                    }
+                                    pickMedia.unregister();
+                                }
+                        );
                 pickMedia.launch(
-                    new PickVisualMediaRequest.Builder().setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build()
+                        new PickVisualMediaRequest.Builder().setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build()
                 );
             }
         } catch (ActivityNotFoundException ex) {
@@ -558,6 +600,7 @@ public class CameraPlugin extends Plugin {
     /**
      * Save the modified image on the same path,
      * or on a temporary location if it's a content url
+     *
      * @param uri
      * @param is
      * @return
@@ -599,20 +642,15 @@ public class CameraPlugin extends Plugin {
         return new File(cacheDir, filename);
     }
 
-    /**
-     * After processing the image, return the final result back to the caller.
-     * @param call
-     * @param bitmap
-     * @param u
-     */
+
     @SuppressWarnings("deprecation")
-    private void returnResult(PluginCall call, Bitmap bitmap, Uri u) {
+    private JSObject createReturnFrom(PluginCall call, Bitmap bitmap, Uri u) {
         ExifWrapper exif = ImageUtils.getExifData(getContext(), bitmap, u);
         try {
             bitmap = prepareBitmap(bitmap, u, exif);
         } catch (IOException e) {
             call.reject(UNABLE_TO_PROCESS_IMAGE);
-            return;
+            return null;
         }
         // Compress the final image and prepare for output to client
         ByteArrayOutputStream bitmapOutputStream = new ByteArrayOutputStream();
@@ -620,7 +658,7 @@ public class CameraPlugin extends Plugin {
 
         if (settings.isAllowEditing() && !isEdited) {
             editImage(call, u, bitmapOutputStream);
-            return;
+            return null;
         }
 
         boolean saveToGallery = call.getBoolean("saveToGallery", CameraSettings.DEFAULT_SAVE_IMAGE_TO_GALLERY);
@@ -656,10 +694,10 @@ public class CameraPlugin extends Plugin {
                     }
                 } else {
                     String inserted = MediaStore.Images.Media.insertImage(
-                        getContext().getContentResolver(),
-                        fileToSavePath,
-                        fileToSave.getName(),
-                        ""
+                            getContext().getContentResolver(),
+                            fileToSavePath,
+                            fileToSave.getName(),
+                            ""
                     );
 
                     if (inserted == null) {
@@ -675,15 +713,37 @@ public class CameraPlugin extends Plugin {
             }
         }
 
+        JSObject ret = null;
         if (settings.getResultType() == CameraResultType.BASE64) {
-            returnBase64(call, exif, bitmapOutputStream);
+            ret = returnBase64(call, exif, bitmapOutputStream);
         } else if (settings.getResultType() == CameraResultType.URI) {
-            returnFileURI(call, exif, bitmap, u, bitmapOutputStream);
+            ret = returnFileURI(call, exif, bitmap, u, bitmapOutputStream);
+            if (ret == null) {
+                call.reject(UNABLE_TO_PROCESS_IMAGE);
+            }
         } else if (settings.getResultType() == CameraResultType.DATAURL) {
-            returnDataUrl(call, exif, bitmapOutputStream);
+            ret = returnDataUrl(call, exif, bitmapOutputStream);
         } else {
             call.reject(INVALID_RESULT_TYPE_ERROR);
         }
+
+        return ret;
+    }
+
+    /**
+     * After processing the image, return the final result back to the caller.
+     *
+     * @param call
+     * @param bitmap
+     * @param u
+     */
+    private void returnResult(PluginCall call, Bitmap bitmap, Uri u) {
+        JSObject ret = createReturnFrom(call, bitmap, u);
+        if (ret != null) {
+            call.resolve(ret);
+        }
+        ;
+
         // Result returned, clear stored paths and images
         if (settings.getResultType() != CameraResultType.URI) {
             deleteImageFile();
@@ -692,6 +752,23 @@ public class CameraPlugin extends Plugin {
         imageFileUri = null;
         imagePickedContentUri = null;
         imageEditedFileSavePath = null;
+    }
+
+    private void returnMultiCameraResult(PluginCall call, HashMap<Uri, Bitmap> images) {
+        settings.setAllowEditing(false); // Editing multiple photos would be cumbersome
+
+        JSObject ret = new JSObject();
+        JSArray photos = new JSArray();
+        for (Map.Entry<Uri, Bitmap> image : images.entrySet()) {
+            JSObject single = createReturnFrom(call, image.getValue(), image.getKey());
+            if (single != null) {
+                photos.put(single);
+            }
+            ;
+        }
+        ret.put("photos", photos);
+
+        call.resolve(ret);
     }
 
     private void deleteImageFile() {
@@ -703,7 +780,7 @@ public class CameraPlugin extends Plugin {
         }
     }
 
-    private void returnFileURI(PluginCall call, ExifWrapper exif, Bitmap bitmap, Uri u, ByteArrayOutputStream bitmapOutputStream) {
+    private JSObject returnFileURI(PluginCall call, ExifWrapper exif, Bitmap bitmap, Uri u, ByteArrayOutputStream bitmapOutputStream) {
         Uri newUri = getTempImage(u, bitmapOutputStream);
         exif.copyExif(newUri.getPath());
         if (newUri != null) {
@@ -713,9 +790,9 @@ public class CameraPlugin extends Plugin {
             ret.put("path", newUri.toString());
             ret.put("webPath", FileUtils.getPortablePath(getContext(), bridge.getLocalUrl(), newUri));
             ret.put("saved", isSaved);
-            call.resolve(ret);
+            return ret;
         } else {
-            call.reject(UNABLE_TO_PROCESS_IMAGE);
+            return null;
         }
     }
 
@@ -725,7 +802,8 @@ public class CameraPlugin extends Plugin {
         try {
             bis = new ByteArrayInputStream(bitmapOutputStream.toByteArray());
             newUri = saveImage(u, bis);
-        } catch (IOException ex) {} finally {
+        } catch (IOException ex) {
+        } finally {
             if (bis != null) {
                 try {
                     bis.close();
@@ -740,16 +818,19 @@ public class CameraPlugin extends Plugin {
     /**
      * Apply our standard processing of the bitmap, returning a new one and
      * recycling the old one in the process
+     *
      * @param bitmap
      * @param imageUri
      * @param exif
      * @return
      */
     private Bitmap prepareBitmap(Bitmap bitmap, Uri imageUri, ExifWrapper exif) throws IOException {
-        if (settings.isShouldCorrectOrientation()) {
-            final Bitmap newBitmap = ImageUtils.correctOrientation(getContext(), bitmap, imageUri, exif);
-            bitmap = replaceBitmap(bitmap, newBitmap);
-        }
+//        TODO: Add support for correct orientation
+//        We bypass now:
+//        if (settings.isShouldCorrectOrientation()) {
+//            final Bitmap newBitmap = ImageUtils.correctOrientation(getContext(), bitmap, imageUri, exif);
+//            bitmap = replaceBitmap(bitmap, newBitmap);
+//        }
 
         if (settings.isShouldResize()) {
             final Bitmap newBitmap = ImageUtils.resize(bitmap, settings.getWidth(), settings.getHeight());
@@ -767,7 +848,7 @@ public class CameraPlugin extends Plugin {
         return bitmap;
     }
 
-    private void returnDataUrl(PluginCall call, ExifWrapper exif, ByteArrayOutputStream bitmapOutputStream) {
+    private JSObject returnDataUrl(PluginCall call, ExifWrapper exif, ByteArrayOutputStream bitmapOutputStream) {
         byte[] byteArray = bitmapOutputStream.toByteArray();
         String encoded = Base64.encodeToString(byteArray, Base64.NO_WRAP);
 
@@ -775,10 +856,10 @@ public class CameraPlugin extends Plugin {
         data.put("format", "jpeg");
         data.put("dataUrl", "data:image/jpeg;base64," + encoded);
         data.put("exif", exif.toJson());
-        call.resolve(data);
+        return data;
     }
 
-    private void returnBase64(PluginCall call, ExifWrapper exif, ByteArrayOutputStream bitmapOutputStream) {
+    private JSObject returnBase64(PluginCall call, ExifWrapper exif, ByteArrayOutputStream bitmapOutputStream) {
         byte[] byteArray = bitmapOutputStream.toByteArray();
         String encoded = Base64.encodeToString(byteArray, Base64.NO_WRAP);
 
@@ -786,7 +867,7 @@ public class CameraPlugin extends Plugin {
         data.put("format", "jpeg");
         data.put("base64String", encoded);
         data.put("exif", exif.toJson());
-        call.resolve(data);
+        return data;
     }
 
     @Override
@@ -806,14 +887,18 @@ public class CameraPlugin extends Plugin {
             if (providedPerms != null) {
                 try {
                     permsList = providedPerms.toList();
-                } catch (JSONException e) {}
+                } catch (JSONException e) {
+                }
             }
 
-            if (permsList != null && permsList.size() == 1 && (permsList.contains(CAMERA) || permsList.contains(PHOTOS))) {
-                // the only thing being asked for was the camera so we can just return the current state
+            if (
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ||
+                            (permsList != null && permsList.size() == 1 && (permsList.contains(CAMERA) || permsList.contains(PHOTOS)))
+            ) {
+                // either we're on Android 13+ (storage permissions do not apply)
+                // or the only thing being asked for was the camera so we can just return the current state
                 checkPermissions(call);
             } else {
-                // we need to ask about gallery so request storage permissions
                 requestPermissionForAlias(SAVE_GALLERY, call, "checkPermissions");
             }
         }
@@ -872,9 +957,9 @@ public class CameraPlugin extends Plugin {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 resInfoList =
-                    getContext()
-                        .getPackageManager()
-                        .queryIntentActivities(editIntent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY));
+                        getContext()
+                                .getPackageManager()
+                                .queryIntentActivities(editIntent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY));
             } else {
                 resInfoList = legacyQueryIntentActivities(editIntent);
             }
