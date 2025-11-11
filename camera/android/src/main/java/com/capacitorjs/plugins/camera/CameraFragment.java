@@ -2,6 +2,8 @@ package com.capacitorjs.plugins.camera;
 
 import static com.capacitorjs.plugins.camera.DeviceUtils.dpToPx;
 
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.view.ViewTreeObserver;
 
 import android.annotation.SuppressLint;
@@ -29,7 +31,6 @@ import android.util.Size;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -43,6 +44,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -58,9 +60,11 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.getcapacitor.Logger;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,6 +172,8 @@ public class CameraFragment extends Fragment {
     private Runnable zoomRunnable = null;
     private MediaActionSound mediaActionSound;
 
+    private Vibrator vibrator;
+
     // Callbacks
     private OnImagesCapturedCallback imagesCapturedCallback;
 
@@ -192,14 +198,14 @@ public class CameraFragment extends Fragment {
 
     @NonNull
     private static ColorStateList createButtonColorList() {
-        int[][] states = new int[][] {
-            new int[] { android.R.attr.state_enabled }, // enabled
-            new int[] { -android.R.attr.state_enabled }, // disabled
-            new int[] { -android.R.attr.state_checked }, // unchecked
-            new int[] { android.R.attr.state_pressed } // pressed
+        int[][] states = new int[][]{
+                new int[]{android.R.attr.state_enabled}, // enabled
+                new int[]{-android.R.attr.state_enabled}, // disabled
+                new int[]{-android.R.attr.state_checked}, // unchecked
+                new int[]{android.R.attr.state_pressed} // pressed
         };
 
-        int[] colors = new int[] { Color.DKGRAY, Color.TRANSPARENT, Color.TRANSPARENT, Color.LTGRAY };
+        int[] colors = new int[]{Color.DKGRAY, Color.TRANSPARENT, Color.TRANSPARENT, Color.LTGRAY};
         return new ColorStateList(states, colors);
     }
 
@@ -214,6 +220,8 @@ public class CameraFragment extends Fragment {
         zoomHandler = new Handler(requireActivity().getMainLooper());
         mediaActionSound = new MediaActionSound();
         mediaActionSound.load(MediaActionSound.SHUTTER_CLICK);
+
+        vibrator = (Vibrator) requireContext().getSystemService(Context.VIBRATOR_SERVICE);
 
         // Register for configuration changes (like orientation changes)
         setRetainInstance(true);
@@ -365,9 +373,9 @@ public class CameraFragment extends Fragment {
                     safeInsetRight = Math.max(safeInsetRight, displayCutout.getSafeInsetRight());
 
                     Logger.debug(TAG, "Display cutout detected - Top: " + safeInsetTop +
-                          ", Bottom: " + safeInsetBottom +
-                          ", Left: " + safeInsetLeft +
-                          ", Right: " + safeInsetRight);
+                            ", Bottom: " + safeInsetBottom +
+                            ", Left: " + safeInsetLeft +
+                            ", Right: " + safeInsetRight);
                 } else {
                     Logger.debug(TAG, "No display cutout detected");
                 }
@@ -391,9 +399,9 @@ public class CameraFragment extends Fragment {
         safeInsetRight = Math.max(safeInsetRight, minSafeMargin);
 
         Logger.debug(TAG, "Final safe area insets - Top: " + safeInsetTop +
-              ", Bottom: " + safeInsetBottom +
-              ", Left: " + safeInsetLeft +
-              ", Right: " + safeInsetRight);
+                ", Bottom: " + safeInsetBottom +
+                ", Left: " + safeInsetLeft +
+                ", Right: " + safeInsetRight);
 
         // Log safe area status for debugging
         logSafeAreaStatus();
@@ -419,10 +427,10 @@ public class CameraFragment extends Fragment {
     private void logSafeAreaStatus() {
         String orientation = isLandscape ? "LANDSCAPE" : "PORTRAIT";
         Logger.debug(TAG, "Safe Area Status - Orientation: " + orientation +
-              ", Safe Insets - Top: " + safeInsetTop +
-              ", Bottom: " + safeInsetBottom +
-              ", Left: " + safeInsetLeft +
-              ", Right: " + safeInsetRight);
+                ", Safe Insets - Top: " + safeInsetTop +
+                ", Bottom: " + safeInsetBottom +
+                ", Left: " + safeInsetLeft +
+                ", Right: " + safeInsetRight);
 
         if (isLandscape && safeInsetRight > dpToPx(requireContext(), 16)) {
             Logger.info(TAG, "Landscape mode with significant right inset detected - likely camera cutout area");
@@ -478,8 +486,8 @@ public class CameraFragment extends Fragment {
             blackBackground.setId(View.generateViewId());
             blackBackground.setBackgroundColor(Color.BLACK);
             RelativeLayout.LayoutParams blackBgParams = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    RelativeLayout.LayoutParams.MATCH_PARENT
             );
             blackBackground.setLayoutParams(blackBgParams);
             relativeLayout.addView(blackBackground, 0); // Add at index 0 to be behind everything
@@ -617,8 +625,8 @@ public class CameraFragment extends Fragment {
         blackBackground.setId(View.generateViewId());
         blackBackground.setBackgroundColor(Color.BLACK);
         RelativeLayout.LayoutParams blackBgParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.MATCH_PARENT
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
         );
         blackBackground.setLayoutParams(blackBgParams);
         relativeLayout.addView(blackBackground); // Add the background first
@@ -720,7 +728,7 @@ public class CameraFragment extends Fragment {
     /**
      * Safely adds an image to the cache
      *
-     * @param uri The URI of the image
+     * @param uri    The URI of the image
      * @param bitmap The bitmap to cache
      */
     private void addImageToCache(Uri uri, Bitmap bitmap) {
@@ -862,8 +870,8 @@ public class CameraFragment extends Fragment {
         processingOverlay.setVisibility(View.GONE);
 
         RelativeLayout.LayoutParams overlayParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.MATCH_PARENT
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
         );
         processingOverlay.setLayoutParams(overlayParams);
 
@@ -871,8 +879,8 @@ public class CameraFragment extends Fragment {
         RelativeLayout contentContainer = new RelativeLayout(fragmentActivity);
         contentContainer.setId(View.generateViewId());
         RelativeLayout.LayoutParams contentParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         contentParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         contentContainer.setLayoutParams(contentParams);
@@ -893,8 +901,8 @@ public class CameraFragment extends Fragment {
         processingText.setTextSize(16);
         processingText.setGravity(Gravity.CENTER);
         RelativeLayout.LayoutParams textParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         textParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
         textParams.addRule(RelativeLayout.BELOW, processingSpinner.getId());
@@ -996,7 +1004,7 @@ public class CameraFragment extends Fragment {
 
             if (wasProcessed) {
                 Logger.debug(TAG, "Bitmap processed: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight() +
-                      " -> " + processedBitmap.getWidth() + "x" + processedBitmap.getHeight());
+                        " -> " + processedBitmap.getWidth() + "x" + processedBitmap.getHeight());
             }
 
             return processedBitmap;
@@ -1034,8 +1042,8 @@ public class CameraFragment extends Fragment {
         takePictureButton.setMaxImageSize(iconSize);
 
         takePictureLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
 
         // Position in the center of the right side controls container
@@ -1051,143 +1059,143 @@ public class CameraFragment extends Fragment {
         takePictureButton.setLayoutParams(takePictureLayoutParams);
         takePictureButton.setStateListAnimator(android.animation.AnimatorInflater.loadStateListAnimator(fragmentActivity, R.animator.button_press_animation));
         takePictureButton.setOnClickListener(
-            v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                mediaActionSound.play(MediaActionSound.SHUTTER_CLICK);
+                v -> {
 
-                // Add loading thumbnail immediately for visual feedback
-                if (thumbnailAdapter != null) {
-                    thumbnailAdapter.addLoadingThumbnail();
-                    // Scroll to show the new loading thumbnail
-                    if (filmstripView != null) {
-                        filmstripView.scrollToPosition(thumbnailAdapter.getItemCount() - 1);
+                    emitCaptureFeedback(v);
+
+                    // Add loading thumbnail immediately for visual feedback
+                    if (thumbnailAdapter != null) {
+                        thumbnailAdapter.addLoadingThumbnail();
+                        // Scroll to show the new loading thumbnail
+                        if (filmstripView != null) {
+                            filmstripView.scrollToPosition(thumbnailAdapter.getItemCount() - 1);
+                        }
                     }
-                }
 
-                var name = new SimpleDateFormat(FILENAME, Locale.US).format(System.currentTimeMillis());
-                var contentValues = new ContentValues();
-                contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, PHOTO_TYPE);
-                var outputOptions = new ImageCapture.OutputFileOptions.Builder(
-                    requireContext().getContentResolver(),
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                )
-                    .build();
+                    var name = new SimpleDateFormat(FILENAME, Locale.US).format(System.currentTimeMillis());
+                    var contentValues = new ContentValues();
+                    contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                    contentValues.put(MediaStore.MediaColumns.MIME_TYPE, PHOTO_TYPE);
+                    var outputOptions = new ImageCapture.OutputFileOptions.Builder(
+                            requireContext().getContentResolver(),
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            contentValues
+                    )
+                            .build();
 
-                cameraController.takePicture(
-                    outputOptions,
-                    cameraExecutor,
-                    new ImageCapture.OnImageSavedCallback() {
-                        @Override
-                        public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                            Uri savedImageUri = outputFileResults.getSavedUri();
-                            if (savedImageUri != null) {
-                                InputStream stream = null;
-                                try {
-                                    stream = requireContext().getContentResolver().openInputStream(savedImageUri);
-                                    if (stream == null) {
-                                        Logger.error(TAG, "Failed to open input stream for saved image: " + savedImageUri, null);
-                                        showErrorToast("Failed to process captured image");
-                                        return;
-                                    }
-
-                                    BitmapFactory.Options options = new BitmapFactory.Options();
-                                    options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-                                    Bitmap bmp = BitmapFactory.decodeStream(stream, null, options);
-
-                                    if (bmp == null) {
-                                        Logger.error(TAG, "Failed to decode bitmap from saved image: " + savedImageUri, null);
-                                        showErrorToast("Failed to process captured image");
-                                        return;
-                                    }
-
-                                    // Process bitmap with quality and size settings
-                                    Bitmap processedBmp = processBitmap(bmp, savedImageUri);
-                                    if (processedBmp != bmp && bmp != null) {
-                                        bmp.recycle(); // Recycle original if it was replaced
-                                    }
-
-                                    addImageToCache(savedImageUri, processedBmp);
-
-                                    // Generate thumbnail on a background thread to avoid UI jank
-                                    if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
-                                        cameraExecutor.execute(() -> {
-                                            final Bitmap thumbnail = getThumbnail(savedImageUri);
-                                            // Update UI on main thread
-                                            requireActivity().runOnUiThread(() -> {
-                                                if (thumbnailAdapter != null) {
-                                                    thumbnailAdapter.replaceLoadingThumbnail(savedImageUri, thumbnail);
-                                                }
-                                            });
-                                        });
-                                    }
-                                } catch (FileNotFoundException e) {
-                                    Logger.error(TAG, "File not found for saved image: " + savedImageUri, e);
-                                    showErrorToast("Image file not found");
-                                } catch (OutOfMemoryError e) {
-                                    Logger.error(TAG, "Out of memory when processing image: " + savedImageUri, e);
-                                    showErrorToast("Not enough memory to process image");
-                                    // Try to recover by clearing the cache
-                                    if (imageCache != null) {
-                                        imageCache.clear();
-                                    }
-                                    System.gc(); // Request garbage collection
-                                } catch (Exception e) {
-                                    Logger.error(TAG, "Error processing saved image: " + savedImageUri, e);
-                                    showErrorToast("Error processing image");
-                                } finally {
-                                    if (stream != null) {
+                    cameraController.takePicture(
+                            outputOptions,
+                            cameraExecutor,
+                            new ImageCapture.OnImageSavedCallback() {
+                                @Override
+                                public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                                    Uri savedImageUri = outputFileResults.getSavedUri();
+                                    if (savedImageUri != null) {
+                                        InputStream stream = null;
                                         try {
-                                            stream.close();
-                                        } catch (IOException e) {
-                                            Logger.error(TAG, "Error closing input stream", e);
+                                            stream = requireContext().getContentResolver().openInputStream(savedImageUri);
+                                            if (stream == null) {
+                                                Logger.error(TAG, "Failed to open input stream for saved image: " + savedImageUri, null);
+                                                showErrorToast("Failed to process captured image");
+                                                return;
+                                            }
+
+                                            BitmapFactory.Options options = new BitmapFactory.Options();
+                                            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                                            Bitmap bmp = BitmapFactory.decodeStream(stream, null, options);
+
+                                            if (bmp == null) {
+                                                Logger.error(TAG, "Failed to decode bitmap from saved image: " + savedImageUri, null);
+                                                showErrorToast("Failed to process captured image");
+                                                return;
+                                            }
+
+                                            // Process bitmap with quality and size settings
+                                            Bitmap processedBmp = processBitmap(bmp, savedImageUri);
+                                            if (processedBmp != bmp && bmp != null) {
+                                                bmp.recycle(); // Recycle original if it was replaced
+                                            }
+
+                                            addImageToCache(savedImageUri, processedBmp);
+
+                                            // Generate thumbnail on a background thread to avoid UI jank
+                                            if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
+                                                cameraExecutor.execute(() -> {
+                                                    final Bitmap thumbnail = getThumbnail(savedImageUri);
+                                                    // Update UI on main thread
+                                                    requireActivity().runOnUiThread(() -> {
+                                                        if (thumbnailAdapter != null) {
+                                                            thumbnailAdapter.replaceLoadingThumbnail(savedImageUri, thumbnail);
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                        } catch (FileNotFoundException e) {
+                                            Logger.error(TAG, "File not found for saved image: " + savedImageUri, e);
+                                            showErrorToast("Image file not found");
+                                        } catch (OutOfMemoryError e) {
+                                            Logger.error(TAG, "Out of memory when processing image: " + savedImageUri, e);
+                                            showErrorToast("Not enough memory to process image");
+                                            // Try to recover by clearing the cache
+                                            if (imageCache != null) {
+                                                imageCache.clear();
+                                            }
+                                            System.gc(); // Request garbage collection
+                                        } catch (Exception e) {
+                                            Logger.error(TAG, "Error processing saved image: " + savedImageUri, e);
+                                            showErrorToast("Error processing image");
+                                        } finally {
+                                            if (stream != null) {
+                                                try {
+                                                    stream.close();
+                                                } catch (IOException e) {
+                                                    Logger.error(TAG, "Error closing input stream", e);
+                                                }
+                                            }
                                         }
+                                    } else {
+                                        Logger.error(TAG, "Saved image URI is null", null);
+                                        showErrorToast("Failed to save image");
                                     }
                                 }
-                            } else {
-                                Logger.error(TAG, "Saved image URI is null", null);
-                                showErrorToast("Failed to save image");
-                            }
-                        }
 
-                        @Override
-                        public void onError(@NonNull ImageCaptureException exception) {
-                            int errorCode = exception.getImageCaptureError();
-                            String errorMessage;
+                                @Override
+                                public void onError(@NonNull ImageCaptureException exception) {
+                                    int errorCode = exception.getImageCaptureError();
+                                    String errorMessage;
 
-                            switch (errorCode) {
-                                case ImageCapture.ERROR_CAMERA_CLOSED:
-                                    errorMessage = "Camera was closed during capture";
-                                    break;
-                                case ImageCapture.ERROR_CAPTURE_FAILED:
-                                    errorMessage = "Image capture failed";
-                                    break;
-                                case ImageCapture.ERROR_FILE_IO:
-                                    errorMessage = "File write operation failed";
-                                    break;
-                                case ImageCapture.ERROR_INVALID_CAMERA:
-                                    errorMessage = "Selected camera cannot be found";
-                                    break;
-                                default:
-                                    errorMessage = "Unknown error during image capture";
-                                    break;
-                            }
+                                    switch (errorCode) {
+                                        case ImageCapture.ERROR_CAMERA_CLOSED:
+                                            errorMessage = "Camera was closed during capture";
+                                            break;
+                                        case ImageCapture.ERROR_CAPTURE_FAILED:
+                                            errorMessage = "Image capture failed";
+                                            break;
+                                        case ImageCapture.ERROR_FILE_IO:
+                                            errorMessage = "File write operation failed";
+                                            break;
+                                        case ImageCapture.ERROR_INVALID_CAMERA:
+                                            errorMessage = "Selected camera cannot be found";
+                                            break;
+                                        default:
+                                            errorMessage = "Unknown error during image capture";
+                                            break;
+                                    }
 
-                            Logger.error(TAG, "Image capture error: " + errorMessage, exception);
+                                    Logger.error(TAG, "Image capture error: " + errorMessage, exception);
 
-                            // Remove any loading thumbnails since capture failed
-                            requireActivity().runOnUiThread(() -> {
-                                if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
-                                    thumbnailAdapter.removeLoadingThumbnails();
+                                    // Remove any loading thumbnails since capture failed
+                                    requireActivity().runOnUiThread(() -> {
+                                        if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
+                                            thumbnailAdapter.removeLoadingThumbnails();
+                                        }
+                                    });
+
+                                    showErrorToast(errorMessage);
                                 }
-                            });
-
-                            showErrorToast(errorMessage);
-                        }
-                    }
-                );
-            }
+                            }
+                    );
+                }
         );
         controlsContainer.addView(takePictureButton);
     }
@@ -1199,8 +1207,8 @@ public class CameraFragment extends Fragment {
         flipCameraButton.setColorFilter(Color.WHITE);
         flipCameraButton.setBackgroundTintList(buttonColors);
         flipButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         // Position at the bottom center of controls container with safe area margins
         flipButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
@@ -1211,37 +1219,37 @@ public class CameraFragment extends Fragment {
         flipButtonLayoutParams.setMargins(0, 0, 0, safeBottomMargin);
         flipCameraButton.setLayoutParams(flipButtonLayoutParams);
         flipCameraButton.setOnClickListener(
-            v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                v -> {
+                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
 
-                // Clean up any loading thumbnails since camera swap will cancel ongoing captures
-                if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
-                    thumbnailAdapter.removeLoadingThumbnails();
-                    showErrorToast("Capture cancelled due to camera switch");
-                }
-
-                Logger.debug(TAG, "Switching camera from " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
-                lensFacing = lensFacing == CameraSelector.LENS_FACING_FRONT ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
-                Logger.debug(TAG, "Switched camera to " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
-
-                flashButton.setVisibility(lensFacing == CameraSelector.LENS_FACING_BACK ? View.VISIBLE : View.GONE);
-                if (!zoomTabs.isEmpty()) {
-                    Logger.debug(TAG, "Clearing " + zoomTabs.size() + " zoom tabs");
-                    if (zoomTabLayout != null) {
-                        zoomTabLayout.removeAllTabs();
+                    // Clean up any loading thumbnails since camera swap will cancel ongoing captures
+                    if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
+                        thumbnailAdapter.removeLoadingThumbnails();
+                        showErrorToast("Capture cancelled due to camera switch");
                     }
-                    if (verticalZoomContainer != null) {
-                        verticalZoomContainer.removeAllViews();
+
+                    Logger.debug(TAG, "Switching camera from " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
+                    lensFacing = lensFacing == CameraSelector.LENS_FACING_FRONT ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
+                    Logger.debug(TAG, "Switched camera to " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
+
+                    flashButton.setVisibility(lensFacing == CameraSelector.LENS_FACING_BACK ? View.VISIBLE : View.GONE);
+                    if (!zoomTabs.isEmpty()) {
+                        Logger.debug(TAG, "Clearing " + zoomTabs.size() + " zoom tabs");
+                        if (zoomTabLayout != null) {
+                            zoomTabLayout.removeAllTabs();
+                        }
+                        if (verticalZoomContainer != null) {
+                            verticalZoomContainer.removeAllViews();
+                        }
+                        zoomTabs.clear();
                     }
-                    zoomTabs.clear();
+
+                    // Set the camera selector before setting up camera to ensure correct zoom capabilities
+                    CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
+                    cameraController.setCameraSelector(cameraSelector);
+
+                    setupCamera();
                 }
-
-                // Set the camera selector before setting up camera to ensure correct zoom capabilities
-                CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
-                cameraController.setCameraSelector(cameraSelector);
-
-                setupCamera();
-            }
         );
         controlsContainer.addView(flipCameraButton);
     }
@@ -1253,8 +1261,8 @@ public class CameraFragment extends Fragment {
         doneButton.setColorFilter(Color.WHITE);
         doneButton.setBackgroundTintList(buttonColors);
         doneButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         // Position at the top center of controls container with safe area margins
         doneButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
@@ -1265,10 +1273,10 @@ public class CameraFragment extends Fragment {
         doneButtonLayoutParams.setMargins(0, safeTopMargin, 0, 0);
         doneButton.setLayoutParams(doneButtonLayoutParams);
         doneButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                done();
-            }
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    done();
+                }
         );
         controlsContainer.addView(doneButton);
     }
@@ -1280,8 +1288,8 @@ public class CameraFragment extends Fragment {
         closeButton.setBackgroundTintList(buttonColors);
         closeButton.setColorFilter(Color.WHITE);
         closeButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         // Position at the top left of the preview area with safe area margins
         closeButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
@@ -1293,20 +1301,20 @@ public class CameraFragment extends Fragment {
         closeButtonLayoutParams.setMargins(safeLeftMargin, safeTopMargin, 0, 0);
         closeButton.setLayoutParams(closeButtonLayoutParams);
         closeButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                if (imageCache != null && imageCache.size() > 0) {
-                    new AlertDialog.Builder(requireContext())
-                    .setTitle(CONFIRM_CANCEL_TITLE)
-                    .setMessage(CONFIRM_CANCEL_MESSAGE)
-                    .setPositiveButton(CONFIRM_CANCEL_POSITIVE, (dialogInterface, i) -> cancel())
-                    .setNegativeButton(CONFIRM_CANCEL_NEGATIVE, (dialogInterface, i) -> dialogInterface.dismiss())
-                    .create()
-                    .show();
-                } else {
-                    cancel();
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    if (imageCache != null && imageCache.size() > 0) {
+                        new AlertDialog.Builder(requireContext())
+                                .setTitle(CONFIRM_CANCEL_TITLE)
+                                .setMessage(CONFIRM_CANCEL_MESSAGE)
+                                .setPositiveButton(CONFIRM_CANCEL_POSITIVE, (dialogInterface, i) -> cancel())
+                                .setNegativeButton(CONFIRM_CANCEL_NEGATIVE, (dialogInterface, i) -> dialogInterface.dismiss())
+                                .create()
+                                .show();
+                    } else {
+                        cancel();
+                    }
                 }
-            }
         );
 
         // Add to the main layout instead of the controls container
@@ -1320,8 +1328,8 @@ public class CameraFragment extends Fragment {
         flashButton.setBackgroundTintList(buttonColors);
         flashButton.setColorFilter(Color.WHITE);
         flashButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         // Position at the bottom left of the preview area with safe area margins
         flashButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
@@ -1333,36 +1341,33 @@ public class CameraFragment extends Fragment {
         flashButtonLayoutParams.setMargins(safeLeftMargin, 0, 0, safeBottomMargin);
         flashButton.setLayoutParams(flashButtonLayoutParams);
         flashButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                flashMode = cameraController.getImageCaptureFlashMode();
-                switch (flashMode) {
-                    case ImageCapture.FLASH_MODE_OFF:
-                        {
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    flashMode = cameraController.getImageCaptureFlashMode();
+                    switch (flashMode) {
+                        case ImageCapture.FLASH_MODE_OFF: {
                             flashMode = ImageCapture.FLASH_MODE_ON;
                             flashButton.setImageResource(R.drawable.flash_on_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    case ImageCapture.FLASH_MODE_ON:
-                        {
+                        case ImageCapture.FLASH_MODE_ON: {
                             flashMode = ImageCapture.FLASH_MODE_AUTO;
                             flashButton.setImageResource(R.drawable.flash_auto_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    case ImageCapture.FLASH_MODE_AUTO:
-                        {
+                        case ImageCapture.FLASH_MODE_AUTO: {
                             flashMode = ImageCapture.FLASH_MODE_OFF;
                             flashButton.setImageResource(R.drawable.flash_off_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    default:
-                        throw new IllegalStateException("Unexpected flash mode: " + flashMode);
+                        default:
+                            throw new IllegalStateException("Unexpected flash mode: " + flashMode);
+                    }
+                    cameraController.setImageCaptureFlashMode(flashMode);
                 }
-                cameraController.setImageCaptureFlashMode(flashMode);
-            }
         );
 
         // Add to the main layout instead of the controls container
@@ -1376,8 +1381,8 @@ public class CameraFragment extends Fragment {
         flashButton.setBackgroundTintList(buttonColors);
         flashButton.setColorFilter(Color.WHITE);
         flashButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         flashButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
         flashButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
@@ -1385,38 +1390,49 @@ public class CameraFragment extends Fragment {
         flashButtonLayoutParams.setMargins(0, topMargin, margin, 0);
         flashButton.setLayoutParams(flashButtonLayoutParams);
         flashButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                flashMode = cameraController.getImageCaptureFlashMode();
-                switch (flashMode) {
-                    case ImageCapture.FLASH_MODE_OFF:
-                        {
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    flashMode = cameraController.getImageCaptureFlashMode();
+                    switch (flashMode) {
+                        case ImageCapture.FLASH_MODE_OFF: {
                             flashMode = ImageCapture.FLASH_MODE_ON;
                             flashButton.setImageResource(R.drawable.flash_on_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    case ImageCapture.FLASH_MODE_ON:
-                        {
+                        case ImageCapture.FLASH_MODE_ON: {
                             flashMode = ImageCapture.FLASH_MODE_AUTO;
                             flashButton.setImageResource(R.drawable.flash_auto_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    case ImageCapture.FLASH_MODE_AUTO:
-                        {
+                        case ImageCapture.FLASH_MODE_AUTO: {
                             flashMode = ImageCapture.FLASH_MODE_OFF;
                             flashButton.setImageResource(R.drawable.flash_off_24px);
                             flashButton.setColorFilter(Color.WHITE);
                             break;
                         }
-                    default:
-                        throw new IllegalStateException("Unexpected flash mode: " + flashMode);
+                        default:
+                            throw new IllegalStateException("Unexpected flash mode: " + flashMode);
+                    }
+                    cameraController.setImageCaptureFlashMode(flashMode);
                 }
-                cameraController.setImageCaptureFlashMode(flashMode);
-            }
         );
         relativeLayout.addView(flashButton);
+    }
+
+    /**
+     * Creates the feedback for capture button
+     */
+    private void emitCaptureFeedback(View view) {
+        long vibratorTime = 100;
+        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(vibratorTime, VibrationEffect.DEFAULT_AMPLITUDE));
+        } else {
+            vibrator.vibrate(vibratorTime);
+        }
     }
 
     private void createTakePictureButton(FragmentActivity fragmentActivity, int margin, ColorStateList buttonColors) {
@@ -1436,143 +1452,145 @@ public class CameraFragment extends Fragment {
         takePictureButton.setLayoutParams(takePictureLayoutParams);
         takePictureButton.setStateListAnimator(android.animation.AnimatorInflater.loadStateListAnimator(fragmentActivity, R.animator.button_press_animation));
         takePictureButton.setOnClickListener(
-            v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                mediaActionSound.play(MediaActionSound.SHUTTER_CLICK);
+                v -> {
 
-                // Add loading thumbnail immediately for visual feedback
-                if (thumbnailAdapter != null) {
-                    thumbnailAdapter.addLoadingThumbnail();
-                    // Scroll to show the new loading thumbnail
-                    if (filmstripView != null) {
-                        filmstripView.scrollToPosition(thumbnailAdapter.getItemCount() - 1);
+                    emitCaptureFeedback(v);
+
+//        mediaActionSound.play(MediaActionSound.SHUTTER_CLICK);
+
+                    // Add loading thumbnail immediately for visual feedback
+                    if (thumbnailAdapter != null) {
+                        thumbnailAdapter.addLoadingThumbnail();
+                        // Scroll to show the new loading thumbnail
+                        if (filmstripView != null) {
+                            filmstripView.scrollToPosition(thumbnailAdapter.getItemCount() - 1);
+                        }
                     }
-                }
 
-                var name = new SimpleDateFormat(FILENAME, Locale.US).format(System.currentTimeMillis());
-                var contentValues = new ContentValues();
-                contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, PHOTO_TYPE);
-                var outputOptions = new ImageCapture.OutputFileOptions.Builder(
-                    requireContext().getContentResolver(),
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                )
-                    .build();
+                    var name = new SimpleDateFormat(FILENAME, Locale.US).format(System.currentTimeMillis());
+                    var contentValues = new ContentValues();
+                    contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                    contentValues.put(MediaStore.MediaColumns.MIME_TYPE, PHOTO_TYPE);
+                    var outputOptions = new ImageCapture.OutputFileOptions.Builder(
+                            requireContext().getContentResolver(),
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            contentValues
+                    )
+                            .build();
 
-                cameraController.takePicture(
-                    outputOptions,
-                    cameraExecutor,
-                    new ImageCapture.OnImageSavedCallback() {
-                        @Override
-                        public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                            Uri savedImageUri = outputFileResults.getSavedUri();
-                            if (savedImageUri != null) {
-                                InputStream stream = null;
-                                try {
-                                    stream = requireContext().getContentResolver().openInputStream(savedImageUri);
-                                    if (stream == null) {
-                                        Logger.error(TAG, "Failed to open input stream for saved image: " + savedImageUri, null);
-                                        showErrorToast("Failed to process captured image");
-                                        return;
-                                    }
-
-                                    BitmapFactory.Options options = new BitmapFactory.Options();
-                                    options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-                                    Bitmap bmp = BitmapFactory.decodeStream(stream, null, options);
-
-                                    if (bmp == null) {
-                                        Logger.error(TAG, "Failed to decode bitmap from saved image: " + savedImageUri, null);
-                                        showErrorToast("Failed to process captured image");
-                                        return;
-                                    }
-
-                                    // Process bitmap with quality and size settings
-                                    Bitmap processedBmp = processBitmap(bmp, savedImageUri);
-                                    if (processedBmp != bmp && bmp != null) {
-                                        bmp.recycle(); // Recycle original if it was replaced
-                                    }
-
-                                    addImageToCache(savedImageUri, processedBmp);
-
-                                    // Generate thumbnail on a background thread to avoid UI jank
-                                    if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
-                                        cameraExecutor.execute(() -> {
-                                            final Bitmap thumbnail = getThumbnail(savedImageUri);
-                                            // Update UI on main thread
-                                            requireActivity().runOnUiThread(() -> {
-                                                if (thumbnailAdapter != null) {
-                                                    thumbnailAdapter.replaceLoadingThumbnail(savedImageUri, thumbnail);
-                                                }
-                                            });
-                                        });
-                                    }
-                                } catch (FileNotFoundException e) {
-                                    Logger.error(TAG, "File not found for saved image: " + savedImageUri, e);
-                                    showErrorToast("Image file not found");
-                                } catch (OutOfMemoryError e) {
-                                    Logger.error(TAG, "Out of memory when processing image: " + savedImageUri, e);
-                                    showErrorToast("Not enough memory to process image");
-                                    // Try to recover by clearing the cache
-                                    if (imageCache != null) {
-                                        imageCache.clear();
-                                    }
-                                    System.gc(); // Request garbage collection
-                                } catch (Exception e) {
-                                    Logger.error(TAG, "Error processing saved image: " + savedImageUri, e);
-                                    showErrorToast("Error processing image");
-                                } finally {
-                                    if (stream != null) {
+                    cameraController.takePicture(
+                            outputOptions,
+                            cameraExecutor,
+                            new ImageCapture.OnImageSavedCallback() {
+                                @Override
+                                public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                                    Uri savedImageUri = outputFileResults.getSavedUri();
+                                    if (savedImageUri != null) {
+                                        InputStream stream = null;
                                         try {
-                                            stream.close();
-                                        } catch (IOException e) {
-                                            Logger.error(TAG, "Error closing input stream", e);
+                                            stream = requireContext().getContentResolver().openInputStream(savedImageUri);
+                                            if (stream == null) {
+                                                Logger.error(TAG, "Failed to open input stream for saved image: " + savedImageUri, null);
+                                                showErrorToast("Failed to process captured image");
+                                                return;
+                                            }
+
+                                            BitmapFactory.Options options = new BitmapFactory.Options();
+                                            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                                            Bitmap bmp = BitmapFactory.decodeStream(stream, null, options);
+
+                                            if (bmp == null) {
+                                                Logger.error(TAG, "Failed to decode bitmap from saved image: " + savedImageUri, null);
+                                                showErrorToast("Failed to process captured image");
+                                                return;
+                                            }
+
+                                            // Process bitmap with quality and size settings
+                                            Bitmap processedBmp = processBitmap(bmp, savedImageUri);
+                                            if (processedBmp != bmp && bmp != null) {
+                                                bmp.recycle(); // Recycle original if it was replaced
+                                            }
+
+                                            addImageToCache(savedImageUri, processedBmp);
+
+                                            // Generate thumbnail on a background thread to avoid UI jank
+                                            if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
+                                                cameraExecutor.execute(() -> {
+                                                    final Bitmap thumbnail = getThumbnail(savedImageUri);
+                                                    // Update UI on main thread
+                                                    requireActivity().runOnUiThread(() -> {
+                                                        if (thumbnailAdapter != null) {
+                                                            thumbnailAdapter.replaceLoadingThumbnail(savedImageUri, thumbnail);
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                        } catch (FileNotFoundException e) {
+                                            Logger.error(TAG, "File not found for saved image: " + savedImageUri, e);
+                                            showErrorToast("Image file not found");
+                                        } catch (OutOfMemoryError e) {
+                                            Logger.error(TAG, "Out of memory when processing image: " + savedImageUri, e);
+                                            showErrorToast("Not enough memory to process image");
+                                            // Try to recover by clearing the cache
+                                            if (imageCache != null) {
+                                                imageCache.clear();
+                                            }
+                                            System.gc(); // Request garbage collection
+                                        } catch (Exception e) {
+                                            Logger.error(TAG, "Error processing saved image: " + savedImageUri, e);
+                                            showErrorToast("Error processing image");
+                                        } finally {
+                                            if (stream != null) {
+                                                try {
+                                                    stream.close();
+                                                } catch (IOException e) {
+                                                    Logger.error(TAG, "Error closing input stream", e);
+                                                }
+                                            }
                                         }
+                                    } else {
+                                        Logger.error(TAG, "Saved image URI is null", null);
+                                        showErrorToast("Failed to save image");
                                     }
                                 }
-                            } else {
-                                Logger.error(TAG, "Saved image URI is null", null);
-                                showErrorToast("Failed to save image");
-                            }
-                        }
 
-                        @Override
-                        public void onError(@NonNull ImageCaptureException exception) {
-                            int errorCode = exception.getImageCaptureError();
-                            String errorMessage;
+                                @Override
+                                public void onError(@NonNull ImageCaptureException exception) {
+                                    int errorCode = exception.getImageCaptureError();
+                                    String errorMessage;
 
-                            switch (errorCode) {
-                                case ImageCapture.ERROR_CAMERA_CLOSED:
-                                    errorMessage = "Camera was closed during capture";
-                                    break;
-                                case ImageCapture.ERROR_CAPTURE_FAILED:
-                                    errorMessage = "Image capture failed";
-                                    break;
-                                case ImageCapture.ERROR_FILE_IO:
-                                    errorMessage = "File write operation failed";
-                                    break;
-                                case ImageCapture.ERROR_INVALID_CAMERA:
-                                    errorMessage = "Selected camera cannot be found";
-                                    break;
-                                default:
-                                    errorMessage = "Unknown error during image capture";
-                                    break;
-                            }
+                                    switch (errorCode) {
+                                        case ImageCapture.ERROR_CAMERA_CLOSED:
+                                            errorMessage = "Camera was closed during capture";
+                                            break;
+                                        case ImageCapture.ERROR_CAPTURE_FAILED:
+                                            errorMessage = "Image capture failed";
+                                            break;
+                                        case ImageCapture.ERROR_FILE_IO:
+                                            errorMessage = "File write operation failed";
+                                            break;
+                                        case ImageCapture.ERROR_INVALID_CAMERA:
+                                            errorMessage = "Selected camera cannot be found";
+                                            break;
+                                        default:
+                                            errorMessage = "Unknown error during image capture";
+                                            break;
+                                    }
 
-                            Logger.error(TAG, "Image capture error: " + errorMessage, exception);
+                                    Logger.error(TAG, "Image capture error: " + errorMessage, exception);
 
-                            // Remove any loading thumbnails since capture failed
-                            requireActivity().runOnUiThread(() -> {
-                                if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
-                                    thumbnailAdapter.removeLoadingThumbnails();
+                                    // Remove any loading thumbnails since capture failed
+                                    requireActivity().runOnUiThread(() -> {
+                                        if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
+                                            thumbnailAdapter.removeLoadingThumbnails();
+                                        }
+                                    });
+
+                                    showErrorToast(errorMessage);
                                 }
-                            });
-
-                            showErrorToast(errorMessage);
-                        }
-                    }
-                );
-            }
+                            }
+                    );
+                }
         );
         bottomBar.addView(takePictureButton);
     }
@@ -1584,45 +1602,46 @@ public class CameraFragment extends Fragment {
         flipCameraButton.setColorFilter(Color.WHITE);
         flipCameraButton.setBackgroundTintList(buttonColors);
         flipButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         flipButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_START);
         flipButtonLayoutParams.addRule(RelativeLayout.CENTER_VERTICAL);
         flipButtonLayoutParams.setMargins(margin, 0, 0, 0);
         flipCameraButton.setLayoutParams(flipButtonLayoutParams);
         flipCameraButton.setOnClickListener(
-            v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                v -> {
+                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
 
-                // Clean up any loading thumbnails since camera swap will cancel ongoing captures
-                if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
-                    thumbnailAdapter.removeLoadingThumbnails();
-                    showErrorToast("Capture cancelled due to camera switch");
-                }
-
-                Logger.debug(TAG, "Switching camera from " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
-                lensFacing = lensFacing == CameraSelector.LENS_FACING_FRONT ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
-                Logger.debug(TAG, "Switched camera to " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
-
-                flashButton.setVisibility(lensFacing == CameraSelector.LENS_FACING_BACK ? View.VISIBLE : View.GONE);
-                if (!zoomTabs.isEmpty()) {
-                    Logger.debug(TAG, "Clearing " + zoomTabs.size() + " zoom tabs");
-                    if (zoomTabLayout != null) {
-                        zoomTabLayout.removeAllTabs();
+                    // Clean up any loading thumbnails since camera swap will cancel ongoing captures
+                    if (thumbnailAdapter != null && thumbnailAdapter.hasLoadingThumbnails()) {
+                        thumbnailAdapter.removeLoadingThumbnails();
+                        showErrorToast("Capture cancelled due to camera switch");
                     }
-                    if (verticalZoomContainer != null) {
-                        verticalZoomContainer.removeAllViews();
+
+                    Logger.debug(TAG, "Switching camera from " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
+                    lensFacing = lensFacing == CameraSelector.LENS_FACING_FRONT ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
+
+                    Logger.debug(TAG, "Switched camera to " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK"));
+
+                    flashButton.setVisibility(lensFacing == CameraSelector.LENS_FACING_BACK ? View.VISIBLE : View.GONE);
+                    if (!zoomTabs.isEmpty()) {
+                        Logger.debug(TAG, "Clearing " + zoomTabs.size() + " zoom tabs");
+                        if (zoomTabLayout != null) {
+                            zoomTabLayout.removeAllTabs();
+                        }
+                        if (verticalZoomContainer != null) {
+                            verticalZoomContainer.removeAllViews();
+                        }
+                        zoomTabs.clear();
                     }
-                    zoomTabs.clear();
+
+                    // Set the camera selector before setting up camera to ensure correct zoom capabilities
+                    CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
+                    cameraController.setCameraSelector(cameraSelector);
+
+                    setupCamera();
                 }
-
-                // Set the camera selector before setting up camera to ensure correct zoom capabilities
-                CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
-                cameraController.setCameraSelector(cameraSelector);
-
-                setupCamera();
-            }
         );
         bottomBar.addView(flipCameraButton);
     }
@@ -1645,8 +1664,8 @@ public class CameraFragment extends Fragment {
         int containerWidth = Math.max(baseContainerWidth, safeInsetRight + dpToPx(fragmentActivity, 80)); // 80dp min for controls
 
         RelativeLayout.LayoutParams containerParams = new RelativeLayout.LayoutParams(
-            containerWidth,
-            RelativeLayout.LayoutParams.MATCH_PARENT
+                containerWidth,
+                RelativeLayout.LayoutParams.MATCH_PARENT
         );
         containerParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
 
@@ -1715,8 +1734,8 @@ public class CameraFragment extends Fragment {
             // In landscape mode, explicitly set width to account for controls container
             int containerWidth = (int) (displayMetrics.widthPixels * 0.2);
             previewLayoutParams = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
             );
             // Initially set to match_parent, we'll adjust the width after the controls container is created
             previewLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
@@ -1726,8 +1745,8 @@ public class CameraFragment extends Fragment {
         } else {
             // In portrait mode, use match_parent for width
             previewLayoutParams = new RelativeLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
             );
             // We'll set the ABOVE rule after bottomBar is created
         }
@@ -1741,17 +1760,17 @@ public class CameraFragment extends Fragment {
         previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
 
         previewView.setOnTouchListener(
-            (v, event) -> {
-                if (focusIndicator != null) {
-                    // Position the focus indicator at the touch point
-                    focusIndicator.setX(event.getX() - (focusIndicator.getWidth() / 2f));
-                    focusIndicator.setY(event.getY() - (focusIndicator.getHeight() / 2f));
-                }
+                (v, event) -> {
+                    if (focusIndicator != null) {
+                        // Position the focus indicator at the touch point
+                        focusIndicator.setX(event.getX() - (focusIndicator.getWidth() / 2f));
+                        focusIndicator.setY(event.getY() - (focusIndicator.getHeight() / 2f));
+                    }
 
-                // Let the PreviewView handle the rest of the touch event.
-                // Returning false allows the default tap-to-focus behavior to trigger.
-                return false;
-            }
+                    // Let the PreviewView handle the rest of the touch event.
+                    // Returning false allows the default tap-to-focus behavior to trigger.
+                    return false;
+                }
         );
 
         relativeLayout.addView(previewView);
@@ -1784,8 +1803,8 @@ public class CameraFragment extends Fragment {
 
         // Define the LayoutParams for the cardView
         cardViewLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         cardViewLayoutParams.addRule(RelativeLayout.ABOVE, bottomBar.getId());
         cardViewLayoutParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
@@ -1809,38 +1828,41 @@ public class CameraFragment extends Fragment {
 
         // Set the listener for tab selection to change the text color and background
         zoomTabLayout.addOnTabSelectedListener(
-            new TabLayout.OnTabSelectedListener() {
-                @Override
-                public void onTabSelected(TabLayout.Tab tab) {
-                    ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
-                    zoomTab.setSelected(true);
-                    if (!isSnappingZoom.get()) {
+                new TabLayout.OnTabSelectedListener() {
+                    @Override
+                    public void onTabSelected(TabLayout.Tab tab) {
+                        ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
+                        zoomTab.setSelected(true);
+
+                        if (!isSnappingZoom.get()) {
+                            zoomTab.setTransientZoomLevel(null);
+                            if (cameraController != null) {
+                                float zoolLavel = zoomTab.getZoomLevel();
+                                cameraController.setZoomRatio(zoolLavel);
+                                Log.d(TAG, "onTabSelected: " + zoolLavel);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onTabUnselected(TabLayout.Tab tab) {
+                        ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
+                        zoomTab.setSelected(false);
                         zoomTab.setTransientZoomLevel(null);
-                        if (cameraController != null) {
-                            cameraController.setZoomRatio(zoomTab.getZoomLevel());
+                    }
+
+                    @Override
+                    public void onTabReselected(TabLayout.Tab tab) {
+                        ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
+                        zoomTab.setSelected(true);
+                        if (!isSnappingZoom.get()) {
+                            zoomTab.setTransientZoomLevel(null);
+                            if (cameraController != null) {
+                                cameraController.setZoomRatio(zoomTab.getZoomLevel());
+                            }
                         }
                     }
                 }
-
-                @Override
-                public void onTabUnselected(TabLayout.Tab tab) {
-                    ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
-                    zoomTab.setSelected(false);
-                    zoomTab.setTransientZoomLevel(null);
-                }
-
-                @Override
-                public void onTabReselected(TabLayout.Tab tab) {
-                    ZoomTab zoomTab = zoomTabs.get(tab.getPosition());
-                    zoomTab.setSelected(true);
-                    if (!isSnappingZoom.get()) {
-                        zoomTab.setTransientZoomLevel(null);
-                        if (cameraController != null) {
-                            cameraController.setZoomRatio(zoomTab.getZoomLevel());
-                        }
-                    }
-                }
-            }
         );
 
         zoomTabCardView.addView(zoomTabLayout);
@@ -1887,8 +1909,8 @@ public class CameraFragment extends Fragment {
 
         // Define the LayoutParams for the cardView in landscape mode
         cardViewLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         // Position it to the left of the controls container, centered vertically in the preview area
         cardViewLayoutParams.addRule(RelativeLayout.LEFT_OF, controlsContainer.getId());
@@ -1907,8 +1929,8 @@ public class CameraFragment extends Fragment {
 
         // Use WRAP_CONTENT for both width and height to make the container compact
         LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
         );
         verticalZoomContainer.setLayoutParams(containerParams);
 
@@ -1937,17 +1959,18 @@ public class CameraFragment extends Fragment {
         float[] zoomLevels;
 
         Logger.debug(TAG, "Creating zoom tabs for camera facing: " + (lensFacing == CameraSelector.LENS_FACING_FRONT ? "FRONT" : "BACK") +
-                   ", minZoom: " + minZoom + ", maxZoom: " + maxZoom);
+                ", minZoom: " + minZoom + ", maxZoom: " + maxZoom);
+
 
         // For front camera, don't include ultra-wide (minZoom like 0.6x) as it's not useful
         if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-            zoomLevels = new float[]{ 1f, 2f };
+            zoomLevels = new float[]{1f, 2f};
         } else {
             // For back camera, include minZoom (like 0.6x ultra-wide) if it's less than 1f
             if (minZoom < 1f) {
-                zoomLevels = new float[]{ minZoom, 1f, 2f, 5f };
+                zoomLevels = new float[]{minZoom, 1f, 2f, 5f};
             } else {
-                zoomLevels = new float[]{ 1f, 2f, 5f };
+                zoomLevels = new float[]{1f, 2f, 5f};
             }
         }
 
@@ -1978,8 +2001,8 @@ public class CameraFragment extends Fragment {
 
                 // Create layout params with margin for vertical spacing
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
                 int margin = dpToPx(fragmentActivity, 4);
                 params.setMargins(0, margin, 0, margin);
@@ -1999,6 +2022,7 @@ public class CameraFragment extends Fragment {
                         zoomTab.setTransientZoomLevel(null);
                         if (cameraController != null) {
                             cameraController.setZoomRatio(zoomTab.getZoomLevel());
+
                         }
                     }
                 });
@@ -2026,8 +2050,8 @@ public class CameraFragment extends Fragment {
     private void createFilmstripView(FragmentActivity fragmentActivity) {
         filmstripView = new RecyclerView(fragmentActivity);
         RelativeLayout.LayoutParams filmstripLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         filmstripLayoutParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
         filmstripLayoutParams.addRule(RelativeLayout.ABOVE, zoomTabCardView.getId());
@@ -2076,21 +2100,21 @@ public class CameraFragment extends Fragment {
         filmstripView.getViewTreeObserver().addOnGlobalLayoutListener(filmstripViewListener);
 
         thumbnailAdapter.setOnThumbnailsChangedCallback(
-            new ThumbnailAdapter.OnThumbnailsChangedCallback() {
-                @Override
-                public void onThumbnailRemoved(Uri uri, Bitmap bmp) {
-                    Bitmap bitmap = getImageFromCache(uri);
-                    if (imageCache != null) {
-                        imageCache.remove(uri);
-                    }
+                new ThumbnailAdapter.OnThumbnailsChangedCallback() {
+                    @Override
+                    public void onThumbnailRemoved(Uri uri, Bitmap bmp) {
+                        Bitmap bitmap = getImageFromCache(uri);
+                        if (imageCache != null) {
+                            imageCache.remove(uri);
+                        }
 
-                    if (!deleteFile(uri)) {
-                        Logger.warn(TAG, "Failed to delete file after thumbnail removal: " + uri);
-                        // Even if deletion fails, we've already removed it from the UI and cache,
-                        // so we don't need to show an error to the user
+                        if (!deleteFile(uri)) {
+                            Logger.warn(TAG, "Failed to delete file after thumbnail removal: " + uri);
+                            // Even if deletion fails, we've already removed it from the UI and cache,
+                            // so we don't need to show an error to the user
+                        }
                     }
                 }
-            }
         );
 
         // Set click listener for thumbnails to show preview
@@ -2105,8 +2129,8 @@ public class CameraFragment extends Fragment {
     private void createFilmstripViewForLandscape(FragmentActivity fragmentActivity) {
         filmstripView = new RecyclerView(fragmentActivity);
         RelativeLayout.LayoutParams filmstripLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
 
         // Position the filmstrip at the bottom of the preview area, but to the right of the flash button
@@ -2119,9 +2143,9 @@ public class CameraFragment extends Fragment {
         // Calculate width to use more of the available space
         // We're keeping the 20% for controls container but reducing other margins
         filmstripLayoutParams.width = displayMetrics.widthPixels -
-                                     (int)(displayMetrics.widthPixels * 0.2) - // Controls container
-                                     flashButtonWidth - // Flash button width
-                                     margin; // Reduced margin to allow more thumbnails
+                (int) (displayMetrics.widthPixels * 0.2) - // Controls container
+                flashButtonWidth - // Flash button width
+                margin; // Reduced margin to allow more thumbnails
 
         // Add left margin to create space between flash button and filmstrip
         filmstripLayoutParams.setMargins(margin, 0, 0, margin);
@@ -2207,20 +2231,20 @@ public class CameraFragment extends Fragment {
         filmstripView.getViewTreeObserver().addOnGlobalLayoutListener(filmstripViewSecondaryListener);
 
         thumbnailAdapter.setOnThumbnailsChangedCallback(
-            new ThumbnailAdapter.OnThumbnailsChangedCallback() {
-                @Override
-                public void onThumbnailRemoved(Uri uri, Bitmap bmp) {
-                    if (imageCache != null) {
-                        imageCache.remove(uri);
-                    }
+                new ThumbnailAdapter.OnThumbnailsChangedCallback() {
+                    @Override
+                    public void onThumbnailRemoved(Uri uri, Bitmap bmp) {
+                        if (imageCache != null) {
+                            imageCache.remove(uri);
+                        }
 
-                    if (!deleteFile(uri)) {
-                        Logger.warn(TAG, "Failed to delete file after thumbnail removal in landscape mode: " + uri);
-                        // Even if deletion fails, we've already removed it from the UI and cache,
-                        // so we don't need to show an error to the user
+                        if (!deleteFile(uri)) {
+                            Logger.warn(TAG, "Failed to delete file after thumbnail removal in landscape mode: " + uri);
+                            // Even if deletion fails, we've already removed it from the UI and cache,
+                            // so we don't need to show an error to the user
+                        }
                     }
                 }
-            }
         );
 
         // Set click listener for thumbnails to show preview
@@ -2239,18 +2263,18 @@ public class CameraFragment extends Fragment {
         doneButton.setColorFilter(Color.WHITE);
         doneButton.setBackgroundTintList(buttonColors);
         doneButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         doneButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_END);
         doneButtonLayoutParams.addRule(RelativeLayout.CENTER_VERTICAL);
         doneButtonLayoutParams.setMargins(0, 0, margin, 0);
         doneButton.setLayoutParams(doneButtonLayoutParams);
         doneButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                done();
-            }
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    done();
+                }
         );
         bottomBar.addView(doneButton);
     }
@@ -2262,8 +2286,8 @@ public class CameraFragment extends Fragment {
         closeButton.setBackgroundTintList(buttonColors);
         closeButton.setColorFilter(Color.WHITE);
         closeButtonLayoutParams = new RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.WRAP_CONTENT,
-            RelativeLayout.LayoutParams.WRAP_CONTENT
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
         );
         closeButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
         closeButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
@@ -2272,20 +2296,20 @@ public class CameraFragment extends Fragment {
         closeButtonLayoutParams.setMargins(margin, topMargin, 0, 0);
         closeButton.setLayoutParams(closeButtonLayoutParams);
         closeButton.setOnClickListener(
-            view -> {
-                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                if (imageCache != null && imageCache.size() > 0) {
-                    new AlertDialog.Builder(requireContext())
-                    .setTitle(CONFIRM_CANCEL_TITLE)
-                    .setMessage(CONFIRM_CANCEL_MESSAGE)
-                    .setPositiveButton(CONFIRM_CANCEL_POSITIVE, (dialogInterface, i) -> cancel())
-                    .setNegativeButton(CONFIRM_CANCEL_NEGATIVE, (dialogInterface, i) -> dialogInterface.dismiss())
-                    .create()
-                    .show();
-                } else {
-                    cancel();
+                view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    if (imageCache != null && imageCache.size() > 0) {
+                        new AlertDialog.Builder(requireContext())
+                                .setTitle(CONFIRM_CANCEL_TITLE)
+                                .setMessage(CONFIRM_CANCEL_MESSAGE)
+                                .setPositiveButton(CONFIRM_CANCEL_POSITIVE, (dialogInterface, i) -> cancel())
+                                .setNegativeButton(CONFIRM_CANCEL_NEGATIVE, (dialogInterface, i) -> dialogInterface.dismiss())
+                                .create()
+                                .show();
+                    } else {
+                        cancel();
+                    }
                 }
-            }
         );
         relativeLayout.addView(closeButton);
     }
@@ -2372,106 +2396,106 @@ public class CameraFragment extends Fragment {
 
     private void setupCamera() throws IllegalStateException {
         cameraController
-            .getInitializationFuture()
-            .addListener(() -> {
-                if (!hasFrontFacingCamera()) {
-                    flipCameraButton.setVisibility(View.GONE);
-                }
-            }, ContextCompat.getMainExecutor(requireContext()));
+                .getInitializationFuture()
+                .addListener(() -> {
+                    if (!hasFrontFacingCamera()) {
+                        flipCameraButton.setVisibility(View.GONE);
+                    }
+                }, ContextCompat.getMainExecutor(requireContext()));
 
         cameraController
-            .getZoomState()
-            .observe(
-                requireActivity(),
-                zoomState -> {
-                    zoomRatio = zoomState;
-                    minZoom = zoomState.getMinZoomRatio();
-                    maxZoom = zoomState.getMaxZoomRatio();
+                .getZoomState()
+                .observe(
+                        requireActivity(),
+                        zoomState -> {
+                            zoomRatio = zoomState;
+                            minZoom = zoomState.getMinZoomRatio();
+                            maxZoom = zoomState.getMaxZoomRatio();
 
-                    Logger.debug(TAG, "Zoom state changed - minZoom: " + minZoom + ", maxZoom: " + maxZoom + ", current zoom tabs: " + zoomTabs.size());
+                            Logger.debug(TAG, "Zoom state changed - minZoom: " + minZoom + ", maxZoom: " + maxZoom + ", current zoom tabs: " + zoomTabs.size());
 
-                    if (zoomTabs.isEmpty()) {
-                        Logger.debug(TAG, "Creating zoom tabs because zoomTabs is empty");
-                        if (isLandscape && verticalZoomContainer != null) {
-                            createZoomTabsForLandscape(requireActivity(), verticalZoomContainer);
-                        } else if (zoomTabLayout != null) {
-                            createZoomTabs(requireActivity(), zoomTabLayout);
-                        }
-                    } else {
-                        Logger.debug(TAG, "Not creating zoom tabs because zoomTabs is not empty (" + zoomTabs.size() + " tabs exist)");
-                    }
-
-                    if (zoomRunnable != null) {
-                        zoomHandler.removeCallbacks(zoomRunnable);
-                    }
-
-                    zoomRunnable =
-                        () -> {
-                            float currentZoom = zoomRatio.getZoomRatio();
-                            ZoomTab closestTab = null;
-                            final float threshold = 0.05f; // Threshold for considering the next zoom level
-
-                            for (int i = 0; i < zoomTabs.size(); i++) {
-                                ZoomTab currentTab = zoomTabs.get(i);
-                                // Check if this is the last tab or if the current zoom is less than the next tab's level minus the threshold
-                                if (i == zoomTabs.size() - 1 || currentZoom < zoomTabs.get(i + 1).zoomLevel - threshold) {
-                                    closestTab = currentTab;
-                                    break;
-                                }
-                            }
-
-                            // If we found a closest tab, update its display and select the tab.
-                            if (closestTab != null) {
-                                closestTab.setTransientZoomLevel(currentZoom); // Update the tab's display to show the current zoom level
-
+                            if (zoomTabs.isEmpty()) {
+                                Logger.debug(TAG, "Creating zoom tabs because zoomTabs is empty");
                                 if (isLandscape && verticalZoomContainer != null) {
-                                    // For landscape mode with vertical container, manually handle selection
-                                    isSnappingZoom.set(true);
-                                    // Unselect all tabs
-                                    for (ZoomTab tab : zoomTabs) {
-                                        tab.setSelected(false);
-                                    }
-                                    // Select the closest tab
-                                    closestTab.setSelected(true);
-                                    isSnappingZoom.set(false);
+                                    createZoomTabsForLandscape(requireActivity(), verticalZoomContainer);
                                 } else if (zoomTabLayout != null) {
-                                    // For portrait mode with TabLayout
-                                    TabLayout.Tab tab = zoomTabLayout.getTabAt(closestTab.getTabIndex());
-                                    if (tab != null) {
-                                        isSnappingZoom.set(true);
-                                        zoomTabLayout.selectTab(tab); // This will not trigger the camera zoom change due to the isSnappingZoom flag
-                                        isSnappingZoom.set(false);
-                                    }
+                                    createZoomTabs(requireActivity(), zoomTabLayout);
                                 }
+                            } else {
+                                Logger.debug(TAG, "Not creating zoom tabs because zoomTabs is not empty (" + zoomTabs.size() + " tabs exist)");
                             }
-                        };
-                    zoomHandler.post(zoomRunnable);
-                }
-            );
+
+                            if (zoomRunnable != null) {
+                                zoomHandler.removeCallbacks(zoomRunnable);
+                            }
+
+                            zoomRunnable =
+                                    () -> {
+                                        float currentZoom = zoomRatio.getZoomRatio();
+                                        ZoomTab closestTab = null;
+                                        final float threshold = 0.05f; // Threshold for considering the next zoom level
+
+                                        for (int i = 0; i < zoomTabs.size(); i++) {
+                                            ZoomTab currentTab = zoomTabs.get(i);
+                                            // Check if this is the last tab or if the current zoom is less than the next tab's level minus the threshold
+                                            if (i == zoomTabs.size() - 1 || currentZoom < zoomTabs.get(i + 1).zoomLevel - threshold) {
+                                                closestTab = currentTab;
+                                                break;
+                                            }
+                                        }
+
+                                        // If we found a closest tab, update its display and select the tab.
+                                        if (closestTab != null) {
+                                            closestTab.setTransientZoomLevel(currentZoom); // Update the tab's display to show the current zoom level
+
+                                            if (isLandscape && verticalZoomContainer != null) {
+                                                // For landscape mode with vertical container, manually handle selection
+                                                isSnappingZoom.set(true);
+                                                // Unselect all tabs
+                                                for (ZoomTab tab : zoomTabs) {
+                                                    tab.setSelected(false);
+                                                }
+                                                // Select the closest tab
+                                                closestTab.setSelected(true);
+                                                isSnappingZoom.set(false);
+                                            } else if (zoomTabLayout != null) {
+                                                // For portrait mode with TabLayout
+                                                TabLayout.Tab tab = zoomTabLayout.getTabAt(closestTab.getTabIndex());
+                                                if (tab != null) {
+                                                    isSnappingZoom.set(true);
+                                                    zoomTabLayout.selectTab(tab); // This will not trigger the camera zoom change due to the isSnappingZoom flag
+                                                    isSnappingZoom.set(false);
+                                                }
+                                            }
+                                        }
+                                    };
+                            zoomHandler.post(zoomRunnable);
+                        }
+                );
 
         cameraController
-            .getTapToFocusState()
-            .observe(
-                requireActivity(),
-                tapToFocusState -> {
-                    if (focusIndicator == null) return;
-                    // Show and animate the focus indicator when focusing starts
-                    if (tapToFocusState == LifecycleCameraController.TAP_TO_FOCUS_STARTED) {
-                        focusIndicator.setVisibility(View.VISIBLE);
-                        focusIndicator.setAlpha(0f); // Start fully transparent
-                        focusIndicator.animate().alpha(1f).setDuration(200).setInterpolator(new AccelerateDecelerateInterpolator()).start();
-                    } else {
-                        // Fade out and hide the focus indicator when focusing ends, regardless of the result
-                        focusIndicator
-                            .animate()
-                            .alpha(0f)
-                            .setDuration(500)
-                            .setInterpolator(new AccelerateDecelerateInterpolator())
-                            .withEndAction(() -> focusIndicator.setVisibility(View.INVISIBLE))
-                            .start();
-                    }
-                }
-            );
+                .getTapToFocusState()
+                .observe(
+                        requireActivity(),
+                        tapToFocusState -> {
+                            if (focusIndicator == null) return;
+                            // Show and animate the focus indicator when focusing starts
+                            if (tapToFocusState == LifecycleCameraController.TAP_TO_FOCUS_STARTED) {
+                                focusIndicator.setVisibility(View.VISIBLE);
+                                focusIndicator.setAlpha(0f); // Start fully transparent
+                                focusIndicator.animate().alpha(1f).setDuration(200).setInterpolator(new AccelerateDecelerateInterpolator()).start();
+                            } else {
+                                // Fade out and hide the focus indicator when focusing ends, regardless of the result
+                                focusIndicator
+                                        .animate()
+                                        .alpha(0f)
+                                        .setDuration(500)
+                                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                                        .withEndAction(() -> focusIndicator.setVisibility(View.INVISIBLE))
+                                        .start();
+                            }
+                        }
+                );
 
         CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
         cameraController.setCameraSelector(cameraSelector);
@@ -2490,9 +2514,9 @@ public class CameraFragment extends Fragment {
             requireActivity().runOnUiThread(() -> {
                 try {
                     android.widget.Toast.makeText(
-                        requireContext(),
-                        message,
-                        android.widget.Toast.LENGTH_SHORT
+                            requireContext(),
+                            message,
+                            android.widget.Toast.LENGTH_SHORT
                     ).show();
                 } catch (Exception e) {
                     // Fail silently if we can't show a toast
@@ -2570,7 +2594,7 @@ public class CameraFragment extends Fragment {
             // Last resort fallback for older devices
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 try {
-                    String[] projection = { MediaStore.Images.Media._ID };
+                    String[] projection = {MediaStore.Images.Media._ID};
                     Cursor cursor = contentResolver.query(imageUri, projection, null, null, null);
 
                     if (cursor != null && cursor.moveToFirst()) {
@@ -2579,10 +2603,10 @@ public class CameraFragment extends Fragment {
                         cursor.close();
 
                         return MediaStore.Images.Thumbnails.getThumbnail(
-                            contentResolver,
-                            imageId,
-                            MediaStore.Images.Thumbnails.MINI_KIND,
-                            null
+                                contentResolver,
+                                imageId,
+                                MediaStore.Images.Thumbnails.MINI_KIND,
+                                null
                         );
                     }
                     if (cursor != null) {
@@ -2609,8 +2633,8 @@ public class CameraFragment extends Fragment {
     /**
      * Calculates the optimal inSampleSize value for downsampling
      *
-     * @param options BitmapFactory.Options with outWidth and outHeight set
-     * @param reqWidth Requested width of the resulting bitmap
+     * @param options   BitmapFactory.Options with outWidth and outHeight set
+     * @param reqWidth  Requested width of the resulting bitmap
      * @param reqHeight Requested height of the resulting bitmap
      * @return The optimal inSampleSize value (power of 2)
      */
@@ -2636,9 +2660,11 @@ public class CameraFragment extends Fragment {
 
     public abstract static class OnImagesCapturedCallback {
 
-        public void onCaptureSuccess(HashMap<Uri, Bitmap> images) {}
+        public void onCaptureSuccess(HashMap<Uri, Bitmap> images) {
+        }
 
-        public void onCaptureCanceled() {}
+        public void onCaptureCanceled() {
+        }
     }
 
     public class ZoomTab {
@@ -2678,8 +2704,8 @@ public class CameraFragment extends Fragment {
             textView.setBackground(background);
 
             ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
             );
             textView.setLayoutParams(layoutParams);
 
